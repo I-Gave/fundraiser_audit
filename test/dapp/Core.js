@@ -12,7 +12,7 @@ require('chai')
 
 const expect = require('chai').expect
 
-contract('DAPP Test', accounts => {
+contract('Core Test', accounts => {
   const [creator, user, anotherUser, operator, mallory] = accounts
   let dapp = null
 
@@ -63,6 +63,23 @@ contract('DAPP Test', accounts => {
         await dapp.createCampaign('Test Campaign', '501cid');
         await dapp.createCertificate(1, 10, "Test Certificate", 10);
         await dapp.activateCampaign(1);
+      })
+      it('Creates a campaign', async() => {
+        await dapp.createCampaign('Test Campaign', '501cid');
+        const balance = await dapp.campaignBalance(1);
+        balance.should.be.bignumber.equal(0);
+      })
+    })
+    describe('Fail cases', async () => {
+      it('Fails if it does not include escrow', async () => {
+        await dapp.changeEscrowAmount(10000);
+        await assertRevert(dapp.createCampaign("Fail Campaign", "501cid"))
+      })
+      it('Fails to add a certificate if sender is not the campaign owner', async () => {
+        await assertRevert(dapp.createCertificate(1, 10, "Test Certificate", 10, {from: mallory}));
+      })
+      it('Fails to add a certificate if campaign Id = 0', async () => {
+        await assertRevert(dapp.createCertificate(0, 10, "Test Certificate", 10));
       })
     })
   })

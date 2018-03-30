@@ -1,10 +1,9 @@
-pragma solidity 0.4.19;
+pragma solidity ^0.4.19;
 
 import "./Fundraiser.sol";
 import "../util/SafeMath.sol";
 
 contract Core is Fundraiser {
-  using SafeMath for uint256;
 
   uint256 public campaignEscrowAmount = 0; // Required escrow to create a campaign. Default, zero
   uint256 public totalRaised = 0;          // Total funds raised by the contract
@@ -25,15 +24,15 @@ contract Core is Fundraiser {
     require(msg.value == campaignEscrowAmount);
 
     uint256 campaignId = _createCampaign(msg.sender, _campaignName, _taxid);
-    campaignBalance[campaignId] = campaignBalance[campaignId].add(campaignEscrowAmount);
+    campaignBalance[campaignId] += campaignEscrowAmount;
     return campaignId;
   }
   // Add a certificate to an existing campaign. Must be the campaign owner. Returns the new certificate index.
   function createCertificate(
-    uint256 _campaignId,
-    uint256 _supply,
+    uint32 _campaignId,
+    uint24 _supply,
     string _name,
-    uint256 _price
+    uint104 _price
   ) public
     returns (uint256)
   {
@@ -52,9 +51,9 @@ contract Core is Fundraiser {
   function updateCertificate(
     uint256 _campaignId,
     uint256 _certificateIdx,
-    uint256 _supply,
+    uint24 _supply,
     string _name,
-    uint256 _price
+    uint104 _price
   )
     public
   {
@@ -88,13 +87,12 @@ contract Core is Fundraiser {
     Certificate storage certificate = campaignCertificates[_campaignId][_certificateIdx];
 
     require(certificate.remaining > 0);
-    require(msg.value == uint256(certificate.price));
+    require(msg.value == uint104(certificate.price));
 
-    uint256 unitNumber = certificate.supply.sub(certificate.remaining).add(1);
+    uint24 unitNumber = certificate.supply - certificate.remaining + 1;
 
-    campaignBalance[_campaignId] = campaignBalance[_campaignId].add(msg.value);
-
-    totalRaised = totalRaised.add(msg.value);
+    campaignBalance[_campaignId] += msg.value;
+    totalRaised += msg.value;
 
     return _createToken(_campaignId, _certificateIdx, unitNumber, msg.sender, msg.value);
   }
@@ -122,6 +120,7 @@ contract Core is Fundraiser {
   }
 
   // Contract owner removes a campaign
+  // Certs capped in Fundraiser
   function vetoCampaign(uint256 _campaignId) public onlyOwner  {
     require(_campaignId > 0);
     delete campaigns[_campaignId];
@@ -129,7 +128,7 @@ contract Core is Fundraiser {
     campaigns[_campaignId].owner = owner;
 
     Certificate[] storage certificates = campaignCertificates[_campaignId];
-    for (uint256 i = 0; i < certificates.length; i = i.add(1)) {
+    for (uint256 i = 0; i < certificates.length; i++) {
       delete certificates[i];
     }
     VetoCampaign(_campaignId);

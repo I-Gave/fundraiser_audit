@@ -1,11 +1,10 @@
-pragma solidity 0.4.19;
+pragma solidity ^0.4.19;
 
 import '../util/Ownable.sol';
 import '../util/SafeMath.sol';
 import './Asset.sol';
 
 contract Fundraiser is Asset, Ownable {
-  using SafeMath for uint256;
 
   address public founderAddress; // Contract launcher
 
@@ -21,7 +20,6 @@ contract Fundraiser is Asset, Ownable {
   mapping (uint256 => Certificate[]) public campaignCertificates;         // list of certificates for each campaign
   mapping (uint256 => uint256) public        campaignCertificateCount;     // count of certificates for each campaign
 
-
   event CreateCampaign(address indexed owner, uint256 indexed campaignId); // Campaign has been created
   event CreateCertificate(uint256 indexed campaignId, string name);        // Certificate added to campaign
   event UpdateCertificate(uint256 indexed campaignId, uint256 indexed certificateIdx); // Certificate has been updated
@@ -32,10 +30,11 @@ contract Fundraiser is Asset, Ownable {
     uint256 campaignId;
     uint256 value;
     address purchaser;
-    uint256 unitNumber;
+    uint24 unitNumber;
     uint256 certificateIdx;
   }
 
+  // Should fit in 512 with FE sanitizing
   struct Campaign {
     address owner;
     string campaignName;
@@ -45,11 +44,12 @@ contract Fundraiser is Asset, Ownable {
     bool ready;
   }
 
+  // Make this fit in 256B
   struct Certificate {
     uint256 campaignId;
     uint256 price;
-    uint256 supply;
-    uint256 remaining;
+    uint24 supply;
+    uint24 remaining;
     string name;
   }
 
@@ -57,7 +57,7 @@ contract Fundraiser is Asset, Ownable {
   function _createToken(
     uint256 _campaignId,
     uint256 _certificateIdx,
-    uint256 _unitNumber,
+    uint24 _unitNumber,
     address _owner,
     uint256 _value
   )
@@ -72,8 +72,8 @@ contract Fundraiser is Asset, Ownable {
       unitNumber: _unitNumber
     });
 
-    uint256 remaining = campaignCertificates[_campaignId][_certificateIdx].remaining;
-    campaignCertificates[_campaignId][_certificateIdx].remaining = remaining.sub(1);
+    uint24 remaining = campaignCertificates[_campaignId][_certificateIdx].remaining;
+    campaignCertificates[_campaignId][_certificateIdx].remaining -= 1;
 
     uint256 newTokenId = tokens.push(_token);
 
@@ -102,12 +102,11 @@ contract Fundraiser is Asset, Ownable {
       ready: false
     });
 
-    uint256 newCampaignId = campaigns.push(_campaign);
-    newCampaignId = newCampaignId.sub(1);
+    uint256 newCampaignId = campaigns.push(_campaign) - 1;
 
     campaignIndexToOwner[newCampaignId] = _owner;
     campaignOwnerToIndexes[_owner].push(newCampaignId);
-    campaignOwnerTotalCampaigns[_owner] = campaignOwnerTotalCampaigns[_owner].add(1);
+    campaignOwnerTotalCampaigns[_owner] += 1;
 
     CreateCampaign(_owner, newCampaignId);
 
@@ -117,7 +116,7 @@ contract Fundraiser is Asset, Ownable {
   // Adds a certificate to an inactive campaign
   function _createCertificate(
     uint256 _campaignId,
-    uint256 _supply,
+    uint24 _supply,
     string _name,
     uint256 _price
   )
@@ -135,7 +134,7 @@ contract Fundraiser is Asset, Ownable {
 
     uint256 certificateIndex = campaignCertificates[_campaignId].push(_certificate);
 
-    campaignCertificateCount[_campaignId] = campaignCertificateCount[_campaignId].add(1);
+    campaignCertificateCount[_campaignId] += 1;
 
     CreateCertificate(_campaignId, _name);
 
@@ -146,7 +145,7 @@ contract Fundraiser is Asset, Ownable {
   function _updateCertificate(
     uint256 _campaignId,
     uint256 _certificateIdx,
-    uint256 _supply,
+    uint24 _supply,
     string _name,
     uint256 _price
   )
@@ -208,8 +207,8 @@ contract Fundraiser is Asset, Ownable {
     returns
   (
     uint256 campaignId,
-    uint64 supply,
-    uint64 remaining,
+    uint24 supply,
+    uint24 remaining,
     string name,
     uint256 price
   ){
@@ -217,8 +216,8 @@ contract Fundraiser is Asset, Ownable {
     Certificate storage certificate = campaignCertificates[_campaignId][_certificateIdx];
 
     campaignId = uint256(certificate.campaignId);
-    supply = uint64(certificate.supply);
-    remaining = uint64(certificate.remaining);
+    supply = uint24(certificate.supply);
+    remaining = uint24(certificate.remaining);
     name = certificate.name;
     price = uint256(certificate.price);
   }
@@ -230,7 +229,7 @@ contract Fundraiser is Asset, Ownable {
   (
     uint256 campaignId,
     uint256 value,
-    uint256 unitNumber,
+    uint24 unitNumber,
     address purchaser,
     uint256 certificateIdx
   ){
@@ -238,7 +237,7 @@ contract Fundraiser is Asset, Ownable {
 
     campaignId = uint256(token.campaignId);
     value = uint256(token.value);
-    unitNumber = uint256(token.unitNumber);
+    unitNumber = uint24(token.unitNumber);
     purchaser = address(token.purchaser);
     certificateIdx = uint256(token.certificateIdx);
   }
@@ -263,7 +262,7 @@ contract Fundraiser is Asset, Ownable {
   }
 
   function totalCampaigns() public view returns (uint256) {
-    return campaigns.length.sub(1);
+    return campaigns.length - 1;
   }
 
   function getCampaignBalance(uint256 _campaignId) public view returns (uint256) {
